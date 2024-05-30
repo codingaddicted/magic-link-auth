@@ -3,7 +3,7 @@
 Plugin Name: WP Magic Link Auth
 Plugin URI: https://github.com/codingaddicted/wp-magic-link-auth
 Description: A secure and user-friendly WordPress plugin for passwordless authentication using magic links.
-Version: 1.0.0
+Version: 0.1.0
 Author: Daniel Maran
 Author URI: https://www.linkedin.com/in/danielmaran
 */
