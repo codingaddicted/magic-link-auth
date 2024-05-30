@@ -2,6 +2,7 @@ class MagicLinkAuth {
     constructor(formId, options = {}) {
         this.form = document.getElementById(formId);
         this.ajaxUrl = options.ajaxUrl || ''; 
+        this.enableLogging = options.enableLogging || false; // Get enableLogging
         if (this.form) {
             this.form.addEventListener('submit', this.handleSubmit.bind(this));
         }
@@ -26,10 +27,14 @@ class MagicLinkAuth {
             const data = await response.json();
 
             if (data.success) {
-                console.log('Magic link sent successfully:', data);
+                if (this.enableLogging)
+                    console.log('Magic link sent successfully:', data);
+                
                 window.postMessage({ type: 'wpMagicLinkAuthSuccess', data: data }, '*');
             } else {
-                console.error('Error sending magic link:', data);
+                if (this.enableLogging)
+                    console.error('Error sending magic link:', data);
+                
                 window.postMessage({ type: 'wpMagicLinkAuthError', data: data }, '*');
             }
         } catch (error) {

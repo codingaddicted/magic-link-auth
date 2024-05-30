@@ -3,7 +3,7 @@
 Plugin Name: WP Magic Link Auth
 Plugin URI: https://github.com/codingaddicted/wp-magic-link-auth
 Description: A secure and user-friendly WordPress plugin for passwordless authentication using magic links.
-Version: 0.1.0
+Version: 0.2.1
 Author: Daniel Maran
 Author URI: https://www.linkedin.com/in/danielmaran
 */
@@ -14,18 +14,34 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Include the admin class.
+require_once plugin_dir_path(__FILE__) . 'admin/class-wp-magic-link-auth-admin.php';
+
+// Initialize the admin class.
+if (is_admin()) {
+    $wp_magic_link_auth_admin = new WP_Magic_Link_Auth_Admin();
+    $wp_magic_link_auth_admin->init(); 
+}
+
 // Include the form template file from the assets folder.
 require_once plugin_dir_path(__FILE__) . 'assets/passwordless-login-form.php';
 
-// Enqueue the form stylesheet and JavaScript.
+// Enqueue the form stylesheet and JavaScript (front-end only).
 function wp_magic_link_auth_enqueue_styles() {
-    wp_enqueue_script(
-        'wp-magic-link-auth-script',
-        plugin_dir_url(__FILE__) . 'assets/wp-magic-link-auth.js',
-        array(), // Dependencies
-        '1.0', // Version
-        true // Load in footer
-    );
+    if (!is_admin()) { 
+        // Pass settings to JavaScript
+        wp_localize_script( 'wp-magic-link-auth-script', 'wpMagicLinkAuthSettings', array(
+            'enableLogging' => get_option('wp_magic_link_auth_enable_logging', 'yes') === 'yes'
+        ));
+
+        wp_enqueue_script(
+            'wp-magic-link-auth-script',
+            plugin_dir_url(__FILE__) . 'assets/wp-magic-link-auth.js',
+            array(), 
+            '1.0',
+            true 
+        );
+    }
 }
 add_action('wp_enqueue_scripts', 'wp_magic_link_auth_enqueue_styles');
 
