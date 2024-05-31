@@ -16,15 +16,15 @@ function passwordless_login_form($returnUrl, $nonce, $sessionId) {
             <label for="email"><?php echo esc_html($formLabel); ?></label> 
             <input type="email" name="email" id="email" required>
             <input type="hidden" name="returnUrl" value="<?php echo esc_url($returnUrl); ?>" />
-            <input type="hidden" name="security" value="<?php echo $nonce; ?>" />
-            <input type="hidden" name="sessionId" value="<?php echo $sessionId; ?>" />
+            <input type="hidden" name="security" value="<?php echo esc_attr($nonce); ?>" />
+            <input type="hidden" name="sessionId" value="<?php echo esc_attr($sessionId); ?>" />
             <button type="submit"><?php echo esc_html($formButton); ?></button> 
         </form>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             new MagicLinkAuth('wp-magic-link-auth-form', {
-                ajaxUrl: '<?php echo admin_url('admin-ajax.php'); ?>',
+                ajaxUrl: '<?php echo esc_url(admin_url('admin-ajax.php')); ?>',
                 enableLogging: <?php echo get_option('wp_magic_link_auth_enable_logging', 'yes') === 'yes' ? 'true' : 'false'; ?> // Pass enableLogging 
             });
         });
