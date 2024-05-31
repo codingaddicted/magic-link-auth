@@ -44,7 +44,13 @@ $formButton = get_option('wp_magic_link_auth_form_button', 'Login');
                     <th scope="row"><label for="wp_magic_link_auth_email_message">Email Message:</label></th>
                     <td>
                         <textarea name="wp_magic_link_auth_email_message" id="wp_magic_link_auth_email_message" rows="5" cols="50" class="large-text code"><?php echo esc_textarea($emailMessage); ?></textarea>
-                        <p class="description">You can use the placeholder <code>{magic_link}</code> to insert the magic link.</p>
+                        <p class="description">
+                            You can use the following placeholders:
+                            <code>{magic_link}</code>, 
+                            <code>{user_email}</code>, 
+                            <code>{user_login}</code>, 
+                            <code>{display_name}</code> 
+                        </p>
                     </td>
                 </tr>
             </tbody>

@@ -22,23 +22,21 @@ WP Magic Link Auth is a WordPress plugin that enables passwordless login via ema
 
 1. **Create a custom login page** in WordPress.
 2. **Add the shortcode `[wp_magic_link_auth]`** to your login page. 
-3. **(Optional) Customize the redirect URL** by adding the `returnurl` attribute to the shortcode:
+3. **(Optional) Customize the redirect URL** by adding the `return-url` attribute to the shortcode:
 
 ```php
 // using default return url
 [wp_magic_link_auth]
 
 // using custom return url
-[wp_magic_link_auth returnUrl="/members-area/"]
+[wp_magic_link_auth return-url="/members-area/"]
 ```
-
-[wp_magic_link_auth returnurl="/members-area/"]
 
 **How it works:**
 
 1. When a user enters its email address in the login form and submits it, the plugin generates a unique, single-use token and sends it to the user's email address in a magic link.
 2. When the user clicks the magic link, the plugin verifies the token and automatically logs them in. 
-3. The user is then redirected to the specified `returnurl` (or the default site home if not provided).
+3. The user is then redirected to the specified `return-url` (or the default site home if not provided).
 
 ### Event Message Handling
 
