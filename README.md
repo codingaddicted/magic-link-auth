@@ -1,8 +1,8 @@
-# WP Magic Link Auth
+# Magic Link Auth
 
 ## Description
 
-WP Magic Link Auth is a WordPress plugin that enables passwordless login via email with enhanced security. It uses session-based single-use tokens to prevent replay attacks and brute-force attempts. 
+Magic Link Auth is a WordPress plugin that enables passwordless login via email with enhanced security. It uses session-based single-use tokens to prevent replay attacks and brute-force attempts. 
 
 ## Features
 
