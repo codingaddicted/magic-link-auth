@@ -145,34 +145,42 @@ add_action('wp_ajax_nopriv_send_magic_link', 'send_magic_link');
 // Handle the authentication process.
 function authenticate_passwordless_login() {
     if (isset($_GET['token'])) {
-        $token = sanitize_text_field($_GET['token']);
-        $returnUrl = isset($_GET['returnUrl']) ? esc_url_raw($_GET['returnUrl']) : home_url('/');
+        // Prevent email link scanners from invalidating the token
+        if ($_SERVER['REQUEST_METHOD'] === 'HEAD') {
+            status_header(200);
+            exit;
+        }
 
-        // Get the user by token.
-        $users = get_users(array('meta_key' => 'passwordless_login_token', 'meta_value' => $token));
-
-        if (!empty($users)) {
-            $user = $users[0];
-
-            // Check if the token is expired.
-            $expiration = get_user_meta($user->ID, 'passwordless_login_token_expiration', true);
-            if (time() > $expiration) {
-                wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $token = sanitize_text_field($_GET['token']);
+            $returnUrl = isset($_GET['returnUrl']) ? esc_url_raw($_GET['returnUrl']) : home_url('/');
+    
+            // Get the user by token.
+            $users = get_users(array('meta_key' => 'passwordless_login_token', 'meta_value' => $token));
+    
+            if (!empty($users)) {
+                $user = $users[0];
+    
+                // Check if the token is expired.
+                $expiration = get_user_meta($user->ID, 'passwordless_login_token_expiration', true);
+                if (time() > $expiration) {
+                    wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
+                    exit;
+                }
+    
+                // Delete the token to prevent reuse.
+                delete_user_meta($user->ID, 'passwordless_login_token');
+                delete_user_meta($user->ID, 'passwordless_login_token_expiration');
+    
+                // Log the user in.
+                wp_set_auth_cookie($user->ID, true);
+                wp_redirect($returnUrl); // Redirect to the intended page after login.
+                exit;
+            } else {
+                // Token not found or invalid
+                wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
                 exit;
             }
-
-            // Delete the token to prevent reuse.
-            delete_user_meta($user->ID, 'passwordless_login_token');
-            delete_user_meta($user->ID, 'passwordless_login_token_expiration');
-
-            // Log the user in.
-            wp_set_auth_cookie($user->ID, true);
-            wp_redirect($returnUrl); // Redirect to the intended page after login.
-            exit;
-        } else {
-            // Token not found or invalid
-            wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
-            exit;
         }
     }
 }
