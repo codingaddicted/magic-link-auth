@@ -67,6 +67,11 @@ function wp_magic_link_auth_form_shortcode($atts = []) {
     // Store the token in the session
     $_SESSION['magic_link_single_use_token'] = $singleUseToken;
 
+    // Override the return URL if it's set in the querystring
+    if (isset($_GET['returnUrl'])) {
+        $atts['return-url'] = esc_url_raw($_GET['returnUrl']);
+    }  
+
     // Pass the token and session ID to the form template.
     return passwordless_login_form($atts['return-url'], $singleUseToken, session_id()); 
 }
