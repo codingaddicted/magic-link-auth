@@ -176,7 +176,22 @@ function authenticate_passwordless_login() {
                 // Delete the token to prevent reuse.
                 delete_user_meta($user->ID, 'passwordless_login_token');
                 delete_user_meta($user->ID, 'passwordless_login_token_expiration');
-    
+
+                // Allow other plugins to perform additional checks before logging in the user.
+                $check_result = apply_filters('wp_magic_link_auth_pre_login_check', $user);
+
+                // Handle WP_Error in the response
+                if (is_wp_error($check_result)) {
+                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result->get_error_message()));
+                    exit;
+                }
+
+                if (!$check_result['state']) {
+                    // Redirect with error message if the check fails.
+                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result['message']));
+                    exit;
+                }
+
                 // Log the user in.
                 wp_set_auth_cookie($user->ID, true);
                 wp_redirect($returnUrl); // Redirect to the intended page after login.
