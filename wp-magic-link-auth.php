@@ -3,7 +3,7 @@
 Plugin Name: WP Magic Link Auth
 Plugin URI: https://github.com/codingaddicted/wp-magic-link-auth
 Description: A secure and user-friendly WordPress plugin for passwordless authentication using magic links.
-Version: 0.2.1
+Version: 0.3.0
 Author: Daniel Maran
 Author URI: https://www.linkedin.com/in/danielmaran
 */
@@ -66,6 +66,11 @@ function wp_magic_link_auth_form_shortcode($atts = []) {
 
     // Store the token in the session
     $_SESSION['magic_link_single_use_token'] = $singleUseToken;
+
+    // Override the return URL if it's set in the querystring
+    if (isset($_GET['returnUrl'])) {
+        $atts['return-url'] = esc_url_raw($_GET['returnUrl']);
+    }  
 
     // Pass the token and session ID to the form template.
     return passwordless_login_form($atts['return-url'], $singleUseToken, session_id()); 
@@ -145,34 +150,57 @@ add_action('wp_ajax_nopriv_send_magic_link', 'send_magic_link');
 // Handle the authentication process.
 function authenticate_passwordless_login() {
     if (isset($_GET['token'])) {
-        $token = sanitize_text_field($_GET['token']);
-        $returnUrl = isset($_GET['returnUrl']) ? esc_url_raw($_GET['returnUrl']) : home_url('/');
+        // Prevent email link scanners from invalidating the token
+        if ($_SERVER['REQUEST_METHOD'] === 'HEAD') {
+            status_header(200);
+            exit;
+        }
 
-        // Get the user by token.
-        $users = get_users(array('meta_key' => 'passwordless_login_token', 'meta_value' => $token));
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $token = sanitize_text_field($_GET['token']);
+            $returnUrl = isset($_GET['returnUrl']) ? esc_url_raw($_GET['returnUrl']) : home_url('/');
+    
+            // Get the user by token.
+            $users = get_users(array('meta_key' => 'passwordless_login_token', 'meta_value' => $token));
+    
+            if (!empty($users)) {
+                $user = $users[0];
+    
+                // Check if the token is expired.
+                $expiration = get_user_meta($user->ID, 'passwordless_login_token_expiration', true);
+                if (time() > $expiration) {
+                    wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
+                    exit;
+                }
+    
+                // Delete the token to prevent reuse.
+                delete_user_meta($user->ID, 'passwordless_login_token');
+                delete_user_meta($user->ID, 'passwordless_login_token_expiration');
 
-        if (!empty($users)) {
-            $user = $users[0];
+                // Allow other plugins to perform additional checks before logging in the user.
+                $check_result = apply_filters('wp_magic_link_auth_pre_login_check', $user);
 
-            // Check if the token is expired.
-            $expiration = get_user_meta($user->ID, 'passwordless_login_token_expiration', true);
-            if (time() > $expiration) {
-                wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
+                // Handle WP_Error in the response
+                if (is_wp_error($check_result)) {
+                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result->get_error_message()));
+                    exit;
+                }
+
+                if (!$check_result['state']) {
+                    // Redirect with error message if the check fails.
+                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result['message']));
+                    exit;
+                }
+
+                // Log the user in.
+                wp_set_auth_cookie($user->ID, true);
+                wp_redirect($returnUrl); // Redirect to the intended page after login.
+                exit;
+            } else {
+                // Token not found or invalid
+                wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
                 exit;
             }
-
-            // Delete the token to prevent reuse.
-            delete_user_meta($user->ID, 'passwordless_login_token');
-            delete_user_meta($user->ID, 'passwordless_login_token_expiration');
-
-            // Log the user in.
-            wp_set_auth_cookie($user->ID, true);
-            wp_redirect($returnUrl); // Redirect to the intended page after login.
-            exit;
-        } else {
-            // Token not found or invalid
-            wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
-            exit;
         }
     }
 }
