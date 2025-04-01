@@ -1,8 +1,8 @@
-# WP Magic Link Auth
+# Magic Link Auth
 
 ## Description
 
-WP Magic Link Auth is a WordPress plugin that enables passwordless login via email with enhanced security. It uses session-based single-use tokens to prevent replay attacks and brute-force attempts. 
+Magic Link Auth is a WordPress plugin that enables passwordless login via email with enhanced security. It uses session-based single-use tokens to prevent replay attacks and brute-force attempts. 
 
 ## Features
 
@@ -12,6 +12,8 @@ WP Magic Link Auth is a WordPress plugin that enables passwordless login via ema
 - Customizable redirect URL after successful login.
 - Easy integration with custom login pages using a shortcode.
 - JavaScript events for custom success and error handling.
+- Extensibility through WordPress filters.
+- Handles `HEAD` requests to prevent token invalidation by email link scanners.
 
 ## Installation
 
@@ -22,23 +24,29 @@ WP Magic Link Auth is a WordPress plugin that enables passwordless login via ema
 
 1. **Create a custom login page** in WordPress.
 2. **Add the shortcode `[wp_magic_link_auth]`** to your login page. 
-3. **(Optional) Customize the redirect URL** by adding the `returnurl` attribute to the shortcode:
+3. **(Optional) Customize the redirect URL** by adding the `return-url` attribute to the shortcode:
 
 ```php
 // using default return url
 [wp_magic_link_auth]
 
 // using custom return url
-[wp_magic_link_auth returnUrl="/members-area/"]
+[wp_magic_link_auth return-url="/members-area/"]
 ```
 
-[wp_magic_link_auth returnurl="/members-area/"]
+4. **(Optional) Override the return URL dynamically** by appending a `returnUrl` query string parameter to the page URL. This will take precedence over the `return-url` attribute in the shortcode (must be relative).
+
+```php
+// Example: Override return URL via query string
+https://example.com/login-page/?returnUrl=/custom-redirect/
+```
 
 **How it works:**
 
 1. When a user enters its email address in the login form and submits it, the plugin generates a unique, single-use token and sends it to the user's email address in a magic link.
 2. When the user clicks the magic link, the plugin verifies the token and automatically logs them in. 
-3. The user is then redirected to the specified `returnurl` (or the default site home if not provided).
+3. The user is then redirected to the specified `return-url` (or the `returnUrl` query string parameter if provided).
+4. The plugin handles `HEAD` requests (commonly sent by email link scanners) to prevent token invalidation. These requests are ignored, and the token remains valid.
 
 ### Event Message Handling
 
@@ -78,10 +86,35 @@ The plugin outputs the following (visible) HTML structure for the login form:
 ```
 You can use the `wp-magic-link-auth-container` class to apply custom CSS styles to the form.
 
+## Extensibility
+
+The plugin provides a filter `wp_magic_link_auth_pre_login_check` to allow other plugins to perform additional checks before logging in the user. 
+
+### Example Usage:
+
+```php
+add_filter('wp_magic_link_auth_pre_login_check', function($user) {
+    // Perform custom validation
+    if ($user->user_email === 'blocked@example.com') {
+        return new WP_Error('blocked_user', 'This user is blocked.');
+    }
+
+    // Return an array with a state and optional message
+    return ['state' => false, 'message' => 'Custom validation failed.'];
+});
+```
+
+### Behavior:
+
+1. If the filter returns a `WP_Error`, the user will be redirected to the return URL with an error message based on the `WP_Error`'s message.
+2. If the filter returns an array with `state` set to `false`, the user will be redirected to the return URL with the provided `message` as the error.
+3. If the filter returns an array with `state` set to `true`, the login process will proceed as normal.
+
 ## Security
 
 - This plugin uses session-based single-use tokens, which are generated randomly and invalidated immediately after a single use.
 - The plugin also implements basic rate limiting to prevent brute-force attacks.
+- `HEAD` requests are handled to prevent email link scanners from invalidating tokens.
 
 ## Contributing
 
