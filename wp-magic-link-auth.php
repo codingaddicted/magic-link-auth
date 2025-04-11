@@ -196,6 +196,11 @@ function authenticate_passwordless_login() {
                     }
                 }
 
+                // Allow WP_User objects to pass
+                if ($check_result instanceof WP_User) {
+                    $check_result = true;
+                }
+
                 // Handle any other unexpected response types
                 if ($check_result !== true) {
                     wp_redirect($returnUrl . '?login_error=' . urlencode('An unexpected error occurred.'));
