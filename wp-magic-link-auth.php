@@ -186,9 +186,19 @@ function authenticate_passwordless_login() {
                     exit;
                 }
 
-                if (!$check_result['state']) {
-                    // Redirect with error message if the check fails.
-                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result['message']));
+                // Handle array response with a 'state' key
+                if (is_array($check_result)) {
+                    if (isset($check_result['state']) && !$check_result['state']) {
+                        // Redirect with error message if the check fails.
+                        $error_message = isset($check_result['message']) ? $check_result['message'] : 'An unknown error occurred.';
+                        wp_redirect($returnUrl . '?login_error=' . urlencode($error_message));
+                        exit;
+                    }
+                }
+
+                // Handle any other unexpected response types
+                if ($check_result !== true) {
+                    wp_redirect($returnUrl . '?login_error=' . urlencode('An unexpected error occurred.'));
                     exit;
                 }
 
