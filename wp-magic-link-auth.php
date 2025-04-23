@@ -14,6 +14,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Include the activation file
+require_once plugin_dir_path(__FILE__) . 'includes/activation.php';
+
+// Register activation and deactivation hooks
+register_activation_hook(__FILE__, 'magic_link_auth_activate');
+register_deactivation_hook(__FILE__, 'magic_link_auth_deactivate');
+
 // Include the admin class.
 require_once plugin_dir_path(__FILE__) . 'admin/class-wp-magic-link-auth-admin.php';
 
