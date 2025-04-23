@@ -123,9 +123,12 @@ function send_magic_link() {
     // Calculate expiration time (5 minutes from now).
     $expiration = time() + (5 * 60);
 
-    // Store the token and expiration time in user meta data.
-    update_user_meta($user->ID, 'passwordless_login_token', $token);
-    update_user_meta($user->ID, 'passwordless_login_token_expiration', $expiration);
+    // Store the token and expiration in the magic_link_auth_requests table
+    global $wpdb;
+    $wpdb->insert(MAGIC_LINK_AUTH_REQUESTS_TABLE, [
+        'user_id' => $user->ID,
+        'token' => $token
+    ]);
 
     // Send the magic link email.
     $magic_link = add_query_arg('token', $token, home_url('/authenticate-passwordless-login/'));
@@ -166,23 +169,32 @@ function authenticate_passwordless_login() {
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $token = sanitize_text_field($_GET['token']);
             $returnUrl = isset($_GET['returnUrl']) ? esc_url_raw($_GET['returnUrl']) : home_url('/');
-    
-            // Get the user by token.
-            $users = get_users(array('meta_key' => 'passwordless_login_token', 'meta_value' => $token));
-    
-            if (!empty($users)) {
-                $user = $users[0];
-    
-                // Check if the token is expired.
-                $expiration = get_user_meta($user->ID, 'passwordless_login_token_expiration', true);
+
+            // Get the user by token from the magic_link_auth_requests table
+            global $wpdb;
+
+            $query = $wpdb->prepare(
+                "SELECT * FROM " . MAGIC_LINK_AUTH_REQUESTS_TABLE . " WHERE token = %s",
+                $token
+            );
+            $request = $wpdb->get_row($query);
+
+            if ($request) {
+                $user = get_user_by('id', $request->user_id);
+
+                // Check if the token is expired (5 minutes from created_at)
+                $expiration = strtotime($request->created_at) + (5 * 60);
                 if (time() > $expiration) {
                     wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
                     exit;
                 }
-    
-                // Delete the token to prevent reuse.
-                delete_user_meta($user->ID, 'passwordless_login_token');
-                delete_user_meta($user->ID, 'passwordless_login_token_expiration');
+
+                // Delete the token to prevent reuse
+                $wpdb->delete(
+                    MAGIC_LINK_AUTH_REQUESTS_TABLE,
+                    ['id' => $request->id],
+                    ['%d']
+                );
 
                 // Allow other plugins to perform additional checks before logging in the user.
                 $check_result = apply_filters('wp_magic_link_auth_pre_login_check', $user);
