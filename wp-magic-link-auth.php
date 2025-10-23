@@ -157,6 +157,17 @@ function send_magic_link() {
 add_action('wp_ajax_send_magic_link', 'send_magic_link');
 add_action('wp_ajax_nopriv_send_magic_link', 'send_magic_link');
 
+// Helper function for consistent redirects
+function magic_link_auth_redirect($base_url, $params = []) {
+    if (!empty($params)) {
+        $url = add_query_arg($params, $base_url);
+    } else {
+        $url = $base_url;
+    }
+    wp_redirect($url);
+    exit;
+}
+
 // Handle the authentication process.
 function authenticate_passwordless_login() {
     if (isset($_GET['token'])) {
@@ -185,8 +196,9 @@ function authenticate_passwordless_login() {
                 // Check if the token is expired (5 minutes from created_at)
                 $expiration = strtotime($request->created_at) + (5 * 60);
                 if (time() > $expiration) {
-                    wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
-                    exit;
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'token_expired' => 1
+                    ]);
                 }
 
                 // Delete the token to prevent reuse
@@ -201,8 +213,9 @@ function authenticate_passwordless_login() {
 
                 // Handle WP_Error in the response
                 if (is_wp_error($check_result)) {
-                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result->get_error_message()));
-                    exit;
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'login_error' => $check_result->get_error_message()
+                    ]);
                 }
 
                 // Handle array response with a 'state' key
@@ -210,8 +223,9 @@ function authenticate_passwordless_login() {
                     if (isset($check_result['state']) && !$check_result['state']) {
                         // Redirect with error message if the check fails.
                         $error_message = isset($check_result['message']) ? $check_result['message'] : 'An unknown error occurred.';
-                        wp_redirect($returnUrl . '?login_error=' . urlencode($error_message));
-                        exit;
+                        magic_link_auth_redirect(home_url('/login/'), [
+                            'login_error' => $error_message
+                        ]);
                     }
                 }
 
@@ -222,18 +236,19 @@ function authenticate_passwordless_login() {
 
                 // Handle any other unexpected response types
                 if ($check_result !== true) {
-                    wp_redirect($returnUrl . '?login_error=' . urlencode('An unexpected error occurred.'));
-                    exit;
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'login_error' => 'An unexpected error occurred.'
+                    ]);
                 }
 
                 // Log the user in.
                 wp_set_auth_cookie($user->ID, true);
-                wp_redirect($returnUrl); // Redirect to the intended page after login.
-                exit;
+                magic_link_auth_redirect($returnUrl); // Redirect to the intended page after login.
             } else {
                 // Token not found or invalid
-                wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
-                exit;
+                magic_link_auth_redirect(home_url('/login/'), [
+                    'token_invalid' => 1
+                ]);
             }
         }
     }
