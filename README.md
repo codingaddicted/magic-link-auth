@@ -14,11 +14,58 @@ Magic Link Auth is a WordPress plugin that enables passwordless login via email 
 - JavaScript events for custom success and error handling.
 - Extensibility through WordPress filters.
 - Handles `HEAD` requests to prevent token invalidation by email link scanners.
+- Configurable token reusability to handle email scanners and security tools that pre-click links.
+- Flexible expiration settings (minutes, hours, or days).
 
 ## Installation
 
 1. Upload the `wp-magic-link-auth` folder to your `/wp-content/plugins/` directory.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
+
+## Configuration
+
+The plugin provides an admin settings page under **Settings > WP Magic Link Auth** where you can configure various options:
+
+### Email Settings
+
+- **Email Subject:** Customize the subject line of the magic link email.
+- **Email Message:** Customize the email body. You can use the following placeholders:
+  - `{magic_link}` - The magic link URL
+  - `{user_email}` - The user's email address
+  - `{user_login}` - The user's login username
+  - `{display_name}` - The user's display name
+
+### Token Reusability Settings
+
+Configure how magic links can be reused to handle email scanners and other automated tools that may click links before the user:
+
+- **Maximum Usage Count:** Set the maximum number of times a magic link can be used (default: 1). 
+  - Set to `1` for traditional single-use links
+  - Set to higher values (e.g., `3-5`) to handle email scanners that follow links before the user
+  - Maximum allowed: `100`
+
+- **Validity Duration:** Set how long the magic link remains valid before expiring (default: 5 minutes).
+  - Choose the time unit: Minutes, Hours, or Days
+  - After this period, the link expires regardless of usage count
+
+**Configuration Examples:**
+
+- **Single-use, 5 minutes** (default): Usage count = `1`, Duration = `5 minutes` - Traditional behavior, link deleted after first use
+- **Allow 3 uses within 10 minutes**: Usage count = `3`, Duration = `10 minutes` - Ideal for handling email scanners
+- **Unlimited uses for 1 hour**: Usage count = `100`, Duration = `1 hour` - Link can be reused freely within the time window
+- **Single-use, valid for 1 day**: Usage count = `1`, Duration = `1 day` - One-time use but user has 24 hours to click it
+- **5 uses in 30 minutes**: Usage count = `5`, Duration = `30 minutes` - Multiple attempts allowed within time limit
+
+The plugin tracks usage count internally and automatically deletes tokens when they reach the maximum usage count or expire.
+
+### Logging Settings
+
+- **Enable Console Logging for AJAX Calls:** Enable/disable JavaScript console logging for debugging purposes.
+
+### Form Settings
+
+- **Email Label:** Customize the label for the email input field (default: "Email:")
+- **Button Text:** Customize the submit button text (default: "Login")
 
 ## Usage
 
@@ -43,10 +90,14 @@ https://example.com/login-page/?returnUrl=/custom-redirect/
 
 **How it works:**
 
-1. When a user enters its email address in the login form and submits it, the plugin generates a unique, single-use token and sends it to the user's email address in a magic link.
+1. When a user enters its email address in the login form and submits it, the plugin generates a unique token and sends it to the user's email address in a magic link.
 2. When the user clicks the magic link, the plugin verifies the token and automatically logs them in. 
 3. The user is then redirected to the specified `return-url` (or the `returnUrl` query string parameter if provided).
 4. The plugin handles `HEAD` requests (commonly sent by email link scanners) to prevent token invalidation. These requests are ignored, and the token remains valid.
+5. Token reusability is managed according to your configuration settings:
+   - The token expires after the configured validity duration
+   - The token is deleted after reaching the maximum usage count
+   - Each use increments the usage counter
 
 ### Event Message Handling
 
@@ -112,9 +163,13 @@ add_filter('wp_magic_link_auth_pre_login_check', function($user) {
 
 ## Security
 
-- This plugin uses session-based single-use tokens, which are generated randomly and invalidated immediately after a single use.
-- The plugin also implements basic rate limiting to prevent brute-force attacks.
+- This plugin uses session-based tokens, which are generated randomly using cryptographically secure functions.
+- Tokens can be configured for single-use or limited reusability to balance security with usability.
+- Token usage is tracked and enforced, with automatic deletion after reaching the maximum usage count.
+- Time-based expiration ensures tokens cannot be used indefinitely.
+- The plugin implements basic rate limiting to prevent brute-force attacks.
 - `HEAD` requests are handled to prevent email link scanners from invalidating tokens.
+- All tokens are stored securely in the WordPress database with proper sanitization.
 
 ## Contributing
 
