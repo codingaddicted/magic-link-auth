@@ -3,7 +3,7 @@
 Plugin Name: WP Magic Link Auth
 Plugin URI: https://github.com/codingaddicted/wp-magic-link-auth
 Description: A secure and user-friendly WordPress plugin for passwordless authentication using magic links.
-Version: 0.3.2
+Version: 0.4.0
 Author: Daniel Maran
 Author URI: https://www.linkedin.com/in/danielmaran
 */
@@ -157,6 +157,66 @@ function send_magic_link() {
 add_action('wp_ajax_send_magic_link', 'send_magic_link');
 add_action('wp_ajax_nopriv_send_magic_link', 'send_magic_link');
 
+// Helper function for consistent redirects
+function magic_link_auth_redirect($base_url, $params = []) {
+    if (!empty($params)) {
+        $url = add_query_arg($params, $base_url);
+    } else {
+        $url = $base_url;
+    }
+    wp_redirect($url);
+    exit;
+}
+
+// Get token expiration time based on configuration
+function magic_link_auth_get_token_expiration($created_at) {
+    $validity_duration = intval(get_option('wp_magic_link_auth_validity_duration', 5));
+    $validity_unit = get_option('wp_magic_link_auth_validity_unit', 'minutes');
+    
+    $multiplier = 60; // Default to minutes
+    if ($validity_unit === 'hours') {
+        $multiplier = 60 * 60;
+    } else if ($validity_unit === 'days') {
+        $multiplier = 60 * 60 * 24;
+    }
+    
+    return strtotime($created_at) + ($validity_duration * $multiplier);
+}
+
+// Check if token has expired
+function magic_link_auth_is_token_expired($request) {
+    $expiration = magic_link_auth_get_token_expiration($request->created_at);
+    return time() > $expiration;
+}
+
+// Handle token usage: update count or delete based on configuration
+function magic_link_auth_handle_token_usage($request) {
+    global $wpdb;
+    
+    $max_usage_count = intval(get_option('wp_magic_link_auth_max_usage_count', 1));
+    $current_usage = intval($request->usage_count) + 1;
+    
+    if ($current_usage >= $max_usage_count) {
+        // Max usage reached, delete the token
+        $wpdb->delete(
+            MAGIC_LINK_AUTH_REQUESTS_TABLE,
+            ['id' => $request->id],
+            ['%d']
+        );
+        return true; // Token deleted
+    } else {
+        // Update usage count
+        $wpdb->update(
+            MAGIC_LINK_AUTH_REQUESTS_TABLE,
+            ['usage_count' => $current_usage],
+            ['id' => $request->id],
+            ['%d'],
+            ['%d']
+        );
+        return false; // Token still valid
+    }
+}
+
 // Handle the authentication process.
 function authenticate_passwordless_login() {
     if (isset($_GET['token'])) {
@@ -182,27 +242,30 @@ function authenticate_passwordless_login() {
             if ($request) {
                 $user = get_user_by('id', $request->user_id);
 
-                // Check if the token is expired (5 minutes from created_at)
-                $expiration = strtotime($request->created_at) + (5 * 60);
-                if (time() > $expiration) {
-                    wp_redirect($returnUrl . '?token_expired=1'); // Redirect with error
-                    exit;
+                // Check if the token is expired
+                if (magic_link_auth_is_token_expired($request)) {
+                    // Delete the expired token
+                    $wpdb->delete(
+                        MAGIC_LINK_AUTH_REQUESTS_TABLE,
+                        ['id' => $request->id],
+                        ['%d']
+                    );
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'token_expired' => 1
+                    ]);
                 }
 
-                // Delete the token to prevent reuse
-                $wpdb->delete(
-                    MAGIC_LINK_AUTH_REQUESTS_TABLE,
-                    ['id' => $request->id],
-                    ['%d']
-                );
+                // Handle token usage: increment count or delete if max reached
+                magic_link_auth_handle_token_usage($request);
 
                 // Allow other plugins to perform additional checks before logging in the user.
                 $check_result = apply_filters('wp_magic_link_auth_pre_login_check', $user);
 
                 // Handle WP_Error in the response
                 if (is_wp_error($check_result)) {
-                    wp_redirect($returnUrl . '?login_error=' . urlencode($check_result->get_error_message()));
-                    exit;
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'login_error' => $check_result->get_error_message()
+                    ]);
                 }
 
                 // Handle array response with a 'state' key
@@ -210,8 +273,9 @@ function authenticate_passwordless_login() {
                     if (isset($check_result['state']) && !$check_result['state']) {
                         // Redirect with error message if the check fails.
                         $error_message = isset($check_result['message']) ? $check_result['message'] : 'An unknown error occurred.';
-                        wp_redirect($returnUrl . '?login_error=' . urlencode($error_message));
-                        exit;
+                        magic_link_auth_redirect(home_url('/login/'), [
+                            'login_error' => $error_message
+                        ]);
                     }
                 }
 
@@ -222,18 +286,19 @@ function authenticate_passwordless_login() {
 
                 // Handle any other unexpected response types
                 if ($check_result !== true) {
-                    wp_redirect($returnUrl . '?login_error=' . urlencode('An unexpected error occurred.'));
-                    exit;
+                    magic_link_auth_redirect(home_url('/login/'), [
+                        'login_error' => 'An unexpected error occurred.'
+                    ]);
                 }
 
                 // Log the user in.
                 wp_set_auth_cookie($user->ID, true);
-                wp_redirect($returnUrl); // Redirect to the intended page after login.
-                exit;
+                magic_link_auth_redirect($returnUrl); // Redirect to the intended page after login.
             } else {
                 // Token not found or invalid
-                wp_redirect($returnUrl . '?token_invalid=1'); // Redirect with error
-                exit;
+                magic_link_auth_redirect(home_url('/login/'), [
+                    'token_invalid' => 1
+                ]);
             }
         }
     }
